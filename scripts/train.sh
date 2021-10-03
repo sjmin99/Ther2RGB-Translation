@@ -1,4 +1,4 @@
-DATA_PATH=../datasets/Luckydata
+DATA_PATH=YOUR_DATA_PATH
 MODEL_NAME=THER2RGB
 
 python train.py --gpu_ids  4\

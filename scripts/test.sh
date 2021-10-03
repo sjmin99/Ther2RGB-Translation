@@ -1,5 +1,5 @@
 ################################ Testing ################################
-DATA_PATH=../datasets/Luckydata/test_cv
+DATA_PATH=YOUR_DATA_PATH
 MODEL_NAME=THER2RGB
 
 python test.py --name $MODEL_NAME \
