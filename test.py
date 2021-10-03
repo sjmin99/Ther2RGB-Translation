@@ -8,8 +8,11 @@ import util.util as util
 from util.visualizer import Visualizer
 from util import html
 import torch
-import numpy as np
 from image_util import *
+from tqdm import tqdm
+import math
+import numpy as np
+import cv2
 
 opt = TestOptions().parse(save=False)
 opt.nThreads = 0   # test code only supports nThreads = 1
@@ -25,26 +28,22 @@ web_dir = os.path.join(opt.results_dir, opt.name, '%s_%s' % (opt.phase, opt.whic
 webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.which_epoch))
 
 # test
-if not opt.engine and not opt.onnx:
-    model = create_model(opt)
-    if opt.data_type == 16:
-        model.half()
-    elif opt.data_type == 8:
-        model.type(torch.uint8)
 
-    if opt.verbose:
-        print(model)
-else:
-    from run_engine import run_trt_engine, run_onnx
-    
+model = create_model(opt)
+
+if opt.verbose:
+    print(model)
+
+predict_list = []
+gt_list = []
+
 for i, data in enumerate(dataset):
-    if i >= opt.how_many:
-        break
+
     ############## Image Processing ##################
     data['label'] = data['label'].cuda()
        
     generated = model.inference(data['label'], data['image'])
-    # import pdb;pdb.set_trace()
+    
     
     visuals = OrderedDict([('real_RGB', util.tensor2im(data['real_RGB'], \
                                                         normalize=opt.normalize)),
@@ -52,8 +51,19 @@ for i, data in enumerate(dataset):
                                                     normalize=opt.normalize)),        
                         ('input_label', util.tensor2label(data['label'], opt.label_nc))
                         ])
+    predict_list.append(visuals['fake_RGB'])
+    gt_list.append(visuals['real_RGB'])
+
     img_path = data['path']
     print('process image... %s' % img_path)
-    visualizer.save_images(webpage, visuals, img_path)
+
+    if opt.save_result is True:
+        visualizer.save_images(webpage, visuals, img_path)
+
+predict_list = np.stack(predict_list)
+gt_list = np.stack(gt_list)
+
+np.save(os.path.join(web_dir,"predict"), predict_list)
+np.save(os.path.join(web_dir,"gt"), gt_list)
 
 webpage.save()

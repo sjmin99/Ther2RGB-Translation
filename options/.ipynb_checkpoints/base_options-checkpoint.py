@@ -20,13 +20,12 @@ class BaseOptions():
         self.parser.add_argument('--verbose', action='store_true', default=False, help='toggles verbose')
         self.parser.add_argument('--fp16', action='store_true', default=False, help='train with AMP')
         self.parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
-        self.parser.add_argument('--gray_only', action='store_true')
-        self.parser.add_argument('--color_only', action='store_true')
+
         # input/output sizes       
         self.parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
-        self.parser.add_argument('--load_size', type=int, default=512, help='scale images to this size')
-        self.parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
-        self.parser.add_argument('--label_nc', type=int, default=0, help='# of input label channels')
+        self.parser.add_argument('--load_size', type=int, default=1024, help='scale images to this size')
+        self.parser.add_argument('--crop_size', type=int, default=512, help='then crop to this size')
+        self.parser.add_argument('--label_nc', type=int, default=35, help='# of input label channels')
         self.parser.add_argument('--input_nc', type=int, default=3, help='# of input image channels')
         self.parser.add_argument('--output_nc', type=int, default=3, help='# of output image channels')
 
@@ -43,13 +42,6 @@ class BaseOptions():
         self.parser.add_argument('--l_norm', type=float, default=100., help='colorization normalization factor')
         self.parser.add_argument('--l_cent', type=float, default=50., help='colorization centering factor')
         self.parser.add_argument('--normalize', action='store_true', help='Normalize input data')
-        self.parser.add_argument('--isreverse',action='store_true')
-        self.parser.add_argument('--isedge',action='store_true')
-        self.parser.add_argument('--isfrequency', action='store_true')
-        self.parser.add_argument('--ther_only', action='store_true')
-        self.parser.add_argument('--use_noise', action='store_true')
-        self.parser.add_argument('--use_colorjitter_contrast', action='store_true')
-        self.parser.add_argument('--use_colorjitter_saturation', action='store_true')
         # for displays
         self.parser.add_argument('--display_winsize', type=int, default=512,  help='display window size')
         self.parser.add_argument('--tf_log', action='store_true', help='if specified, use tensorboard logging. Requires tensorflow installed')

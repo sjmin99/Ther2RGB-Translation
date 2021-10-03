@@ -11,7 +11,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--how_many', type=int, default=50, help='how many test images to run')       
         self.parser.add_argument('--cluster_path', type=str, default='features_clustered_010.npy', help='the path for clustered results of encoded features')
         self.parser.add_argument('--use_encoded_image', action='store_true', help='if specified, encode the real image to get the feature map')
-        self.parser.add_argument("--export_onnx", type=str, help="export ONNX model to a given file")
-        self.parser.add_argument("--engine", type=str, help="run serialized TRT engine")
-        self.parser.add_argument("--onnx", type=str, help="run ONNX model via TRT")        
+        self.parser.add_argument("--save_result", action='store_true', help='Save the predicted results')        
         self.isTrain = False

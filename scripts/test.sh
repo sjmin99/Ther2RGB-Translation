@@ -1,23 +1,15 @@
 ################################ Testing ################################
-# labels only
-DATA_PATH=../datasets/Luckydata
-# DATA_PATH=datasets/
-CHECKPOINTS_PATH=Unet_lucky_T2RGB_v1
+DATA_PATH=../datasets/Luckydata/test_cv
+MODEL_NAME=THER2RGB
 
-python test.py --name $CHECKPOINTS_PATH \
+python test.py --name $MODEL_NAME \
                --dataroot $DATA_PATH \
-               --gpu_ids 4 \
-               --load_size 512 \
+               --gpu_ids 0 \
+               --load_size 256 \
                --nThreads 1\
                --no_flip \
                --serial_batches \
                --resize_or_crop resize \
-               --input_nc 3 \
-               --output_nc 3 \
-               --label_nc 0 \
-               --no_instance \
-               --how_many 3061 \
-               --which_epoch 40\
-                # --phase train \
+               --which_epoch 150\
                
 

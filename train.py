@@ -37,8 +37,7 @@ if opt.debug:
     opt.niter_decay = 0
     opt.max_dataset_size = 10
 else:
-    wandb.init(project='Luckydata')
-    # wandb.init(project='pix2pixHD')
+    wandb.init(project='Ther2RGB')
     wandb.run.name = opt.name
 
 data_loader = CreateDataLoader(opt)
@@ -47,7 +46,6 @@ dataset_size = len(data_loader)
 print('#training images = %d' % dataset_size)
 
 model = create_model(opt)
-# visualizer = Visualizer(opt)
 optimizer_G, optimizer_D = model.module.optimizer_G, model.module.optimizer_D
 
 total_steps = (start_epoch-1) * dataset_size + epoch_iter
@@ -141,10 +139,6 @@ for epoch in tqdm(range(start_epoch, opt.niter + opt.niter_decay + 1)):
         model.module.save('latest')
         model.module.save(epoch)
         np.savetxt(iter_path, (epoch+1, 0), delimiter=',', fmt='%d')
-
-    # ### instead of only training the local enhancer, train the entire network after certain iterations
-    # if (opt.niter_fix_global != 0) and (epoch == opt.niter_fix_global):
-    #     model.module.update_fixed_params()
 
     ### linearly decay learning rate after certain iterations
     if epoch > opt.niter:

@@ -25,11 +25,17 @@ def get_norm_layer(norm_type='instance'):
     return norm_layer
 
 def define_G(input_nc, output_nc, ngf, netG, n_downsample_global=3, n_blocks_global=9, n_local_enhancers=1, 
-             n_blocks_local=3, norm='instance', use_noise=False, gpu_ids=[]):    
+             n_blocks_local=3, norm='instance', gpu_ids=[]):    
     norm_layer = get_norm_layer(norm_type=norm)     
-
-    netG = SIGGRAPHGenerator(input_nc, output_nc,norm_layer, use_noise = use_noise, use_tanh=True)
-
+    if netG == 'global':    
+        netG = GlobalGenerator(input_nc, output_nc, ngf, n_downsample_global, n_blocks_global, norm_layer)       
+    elif netG == 'local':        
+        netG = LocalEnhancer(input_nc, output_nc, ngf, n_downsample_global, n_blocks_global, 
+                                  n_local_enhancers, n_blocks_local, norm_layer)
+    elif netG == 'encoder':
+        netG = Encoder(input_nc, output_nc, ngf, n_downsample_global, norm_layer)
+    else:
+        raise('generator not implemented!')
     print(netG)
     if len(gpu_ids) > 0:
         assert(torch.cuda.is_available())   
@@ -71,7 +77,7 @@ class GANLoss(nn.Module):
         if use_lsgan:
             self.loss = nn.MSELoss()
         else:
-            self.loss =  nn.BCEWithLogitsLoss() 
+            self.loss = nn.BCELoss()
 
     def get_target_tensor(self, input, target_is_real):
         target_tensor = None
@@ -122,168 +128,172 @@ class VGGLoss(nn.Module):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())        
         return loss
 
-class HuberLoss(nn.Module):
-    def __init__(self, delta=.01):
-        super(HuberLoss, self).__init__()
-        self.delta=delta
-
-    def __call__(self, in0, in1):
-        mask = torch.zeros_like(in0)
-        mann = torch.abs(in0-in1)
-        eucl = .5 * (mann**2)
-        mask[...] = mann < self.delta
-
-        # loss = eucl*mask + self.delta*(mann-.5*self.delta)*(1-mask)
-        loss = eucl*mask/self.delta + (mann-.5*self.delta)*(1-mask)
-        return torch.sum(loss,dim=1,keepdim=True)
 ##############################################################################
 # Generator
 ##############################################################################
-class SIGGRAPHGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc ,norm_layer=nn.BatchNorm2d, use_noise=False, use_tanh=True):
-        super(SIGGRAPHGenerator, self).__init__()
-        self.input_nc = input_nc
-        self.output_nc = output_nc
-        self.use_noise = use_noise
-        use_bias = True
+class LocalEnhancer(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf=32, n_downsample_global=3, n_blocks_global=9, 
+                 n_local_enhancers=1, n_blocks_local=3, norm_layer=nn.BatchNorm2d, padding_type='reflect'):        
+        super(LocalEnhancer, self).__init__()
+        self.n_local_enhancers = n_local_enhancers
         
-        # Conv1
-        model1=[nn.Conv2d(input_nc, 64, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model1+=[nn.ReLU(True),]
-        model1+=[nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model1+=[nn.ReLU(True),]
-        model1+=[norm_layer(64),]
+        ###### global generator model #####           
+        ngf_global = ngf * (2**n_local_enhancers)
+        model_global = GlobalGenerator(input_nc, output_nc, ngf_global, n_downsample_global, n_blocks_global, norm_layer).model        
+        model_global = [model_global[i] for i in range(len(model_global)-3)] # get rid of final convolution layers        
+        self.model = nn.Sequential(*model_global)                
 
-        # Conv2
-        model2=[nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1, bias=use_bias),]
-        model2+=[nn.ReLU(True),]
-        model2+=[nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model2+=[nn.ReLU(True),]
-        model2+=[norm_layer(128),]
+        ###### local enhancer layers #####
+        for n in range(1, n_local_enhancers+1):
+            ### downsample            
+            ngf_global = ngf * (2**(n_local_enhancers-n))
+            model_downsample = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf_global, kernel_size=7, padding=0), 
+                                norm_layer(ngf_global), nn.ReLU(True),
+                                nn.Conv2d(ngf_global, ngf_global * 2, kernel_size=3, stride=2, padding=1), 
+                                norm_layer(ngf_global * 2), nn.ReLU(True)]
+            ### residual blocks
+            model_upsample = []
+            for i in range(n_blocks_local):
+                model_upsample += [ResnetBlock(ngf_global * 2, padding_type=padding_type, norm_layer=norm_layer)]
 
-        # Conv3
-        model3=[nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1, bias=use_bias),]
-        model3+=[nn.ReLU(True),]
-        model3+=[nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model3+=[nn.ReLU(True),]
-        model3+=[nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model3+=[nn.ReLU(True),]
-        model3+=[norm_layer(256),]
+            ### upsample
+            model_upsample += [nn.ConvTranspose2d(ngf_global * 2, ngf_global, kernel_size=3, stride=2, padding=1, output_padding=1), 
+                               norm_layer(ngf_global), nn.ReLU(True)]      
 
-        # Conv4
-        model4=[nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1, bias=use_bias),]
-        model4+=[nn.ReLU(True),]
-        model4+=[nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model4+=[nn.ReLU(True),]
-        model4+=[nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model4+=[nn.ReLU(True),]
-        model4+=[norm_layer(512),]
-
-        # Conv5
-        model5=[nn.Conv2d(512, 512, kernel_size=3, dilation=2, stride=1, padding=2, bias=use_bias),]
-        model5+=[nn.ReLU(True),]
-        model5+=[nn.Conv2d(512, 512, kernel_size=3, dilation=2, stride=1, padding=2, bias=use_bias),]
-        model5+=[nn.ReLU(True),]
-        model5+=[nn.Conv2d(512, 512, kernel_size=3, dilation=2, stride=1, padding=2, bias=use_bias),]
-        model5+=[nn.ReLU(True),]
-        model5+=[norm_layer(512),]
-
-        # Conv6
-        model6=[nn.Conv2d(512, 512, kernel_size=3, dilation=2, stride=1, padding=2, bias=use_bias),]
-        model6+=[nn.ReLU(True),]
-        model6+=[nn.Conv2d(512, 512, kernel_size=3, dilation=2, stride=1, padding=2, bias=use_bias),]
-        model6+=[nn.ReLU(True),]
-        model6+=[nn.Conv2d(512, 512, kernel_size=3, dilation=2, stride=1, padding=2, bias=use_bias),]
-        model6+=[nn.ReLU(True),]
-        model6+=[norm_layer(512),]
-
-        # Conv7
-        model7=[nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model7+=[nn.ReLU(True),]
-        model7+=[nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model7+=[nn.ReLU(True),]
-        model7+=[nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model7+=[nn.ReLU(True),]
-        model7+=[norm_layer(512),]
-
-        # Conv7
-        model8up=[nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1, bias=use_bias)]
-
-        model3short8=[nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-
-        model8=[nn.ReLU(True),]
-        model8+=[nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model8+=[nn.ReLU(True),]
-        model8+=[nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model8+=[nn.ReLU(True),]
-        model8+=[norm_layer(256),]
-
-        # Conv9
-        model9up=[nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1, bias=use_bias),]
-
-        model2short9=[nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=use_bias),]    
-
-        model9=[nn.ReLU(True),]
-        model9+=[nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-        model9+=[nn.ReLU(True),]
-        model9+=[norm_layer(128),]
-
-        # Conv10
-        model10up=[nn.ConvTranspose2d(128, 128, kernel_size=4, stride=2, padding=1, bias=use_bias),]
-
-        model1short10=[nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=use_bias),]
-
-        model10=[nn.ReLU(True),]
-        model10+=[nn.Conv2d(128, 128, kernel_size=3, dilation=1, stride=1, padding=1, bias=use_bias),]
-        model10+=[nn.LeakyReLU(negative_slope=.2),]
-
-        # regression output
-        model_out=[nn.Conv2d(128, self.output_nc, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias),]
-        if(use_tanh):
-            model_out+=[nn.Tanh()]
-
-        self.model1 = nn.Sequential(*model1)
-        self.model2 = nn.Sequential(*model2)
-        self.model3 = nn.Sequential(*model3)
-        self.model4 = nn.Sequential(*model4)
-        self.model5 = nn.Sequential(*model5)
-        self.model6 = nn.Sequential(*model6)
-        self.model7 = nn.Sequential(*model7)
-        self.model8up = nn.Sequential(*model8up)
-        self.model8 = nn.Sequential(*model8)
-        self.model9up = nn.Sequential(*model9up)
-        self.model9 = nn.Sequential(*model9)
-        self.model10up = nn.Sequential(*model10up)
-        self.model10 = nn.Sequential(*model10)
-        self.model3short8 = nn.Sequential(*model3short8)
-        self.model2short9 = nn.Sequential(*model2short9)
-        self.model1short10 = nn.Sequential(*model1short10)
-
-        self.model_out = nn.Sequential(*model_out)
-
-    def forward(self, input_A):
+            ### final convolution
+            if n == n_local_enhancers:                
+                model_upsample += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]                       
+            
+            setattr(self, 'model'+str(n)+'_1', nn.Sequential(*model_downsample))
+            setattr(self, 'model'+str(n)+'_2', nn.Sequential(*model_upsample))                  
         
-        conv1_2 = self.model1(input_A)#(3,256,256) -> (64,256,256)
-        conv2_2 = self.model2(conv1_2)#(64,256,256) -> (128,128,128)
-        conv3_3 = self.model3(conv2_2)#(128,128,128) -> (256,64,64)
-        conv4_3 = self.model4(conv3_3)#(256,64,64) -> (512,32,32)
-        conv5_3 = self.model5(conv4_3)#(512,32,32) -> (512,32,32)
-        conv6_3 = self.model6(conv5_3)#(512,32,32) -> (512,32,32)
-        conv7_3 = self.model7(conv6_3)#(512,32,32) -> (512,32,32)
+        self.downsample = nn.AvgPool2d(3, stride=2, padding=[1, 1], count_include_pad=False)
 
-        conv8_up = self.model8up(conv7_3) + self.model3short8(conv3_3) 
-        conv8_3 = self.model8(conv8_up)
+    def forward(self, input): 
+        ### create input pyramid
+        input_downsampled = [input]
+        for i in range(self.n_local_enhancers):
+            input_downsampled.append(self.downsample(input_downsampled[-1]))
 
-        conv9_up = self.model9up(conv8_3) + self.model2short9(conv2_2)
-        conv9_3 = self.model9(conv9_up)
-        conv10_up = self.model10up(conv9_3) + self.model1short10(conv1_2)
-        conv10_2 = self.model10(conv10_up)
+        ### output at coarest level
+        output_prev = self.model(input_downsampled[-1])        
+        ### build up one layer at a time
+        for n_local_enhancers in range(1, self.n_local_enhancers+1):
+            model_downsample = getattr(self, 'model'+str(n_local_enhancers)+'_1')
+            model_upsample = getattr(self, 'model'+str(n_local_enhancers)+'_2')            
+            input_i = input_downsampled[self.n_local_enhancers-n_local_enhancers]            
+            output_prev = model_upsample(model_downsample(input_i) + output_prev)
+        return output_prev
+
+class GlobalGenerator(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf=64, n_downsampling=3, n_blocks=9, norm_layer=nn.BatchNorm2d, 
+                 padding_type='reflect'):
+        assert(n_blocks >= 0)
+        super(GlobalGenerator, self).__init__()        
+        activation = nn.ReLU(True)        
+
+        model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0), norm_layer(ngf), activation]
+        ### downsample
+        for i in range(n_downsampling):
+            mult = 2**i
+            model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1),
+                      norm_layer(ngf * mult * 2), activation]
+
+        ### resnet blocks
+        mult = 2**n_downsampling
+        for i in range(n_blocks):
+            model += [ResnetBlock(ngf * mult, padding_type=padding_type, activation=activation, norm_layer=norm_layer)]
         
-        out_reg = self.model_out(conv10_2)
-
-        return out_reg
-
+        ### upsample         
+        for i in range(n_downsampling):
+            mult = 2**(n_downsampling - i)
+            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2), kernel_size=3, stride=2, padding=1, output_padding=1),
+                       norm_layer(int(ngf * mult / 2)), activation]
+        model += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]        
+        self.model = nn.Sequential(*model)
+            
+    def forward(self, input):
+        return self.model(input)             
+        
 # Define a resnet block
+class ResnetBlock(nn.Module):
+    def __init__(self, dim, padding_type, norm_layer, activation=nn.ReLU(True), use_dropout=False):
+        super(ResnetBlock, self).__init__()
+        self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, activation, use_dropout)
+
+    def build_conv_block(self, dim, padding_type, norm_layer, activation, use_dropout):
+        conv_block = []
+        p = 0
+        if padding_type == 'reflect':
+            conv_block += [nn.ReflectionPad2d(1)]
+        elif padding_type == 'replicate':
+            conv_block += [nn.ReplicationPad2d(1)]
+        elif padding_type == 'zero':
+            p = 1
+        else:
+            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+
+        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p),
+                       norm_layer(dim),
+                       activation]
+        if use_dropout:
+            conv_block += [nn.Dropout(0.5)]
+
+        p = 0
+        if padding_type == 'reflect':
+            conv_block += [nn.ReflectionPad2d(1)]
+        elif padding_type == 'replicate':
+            conv_block += [nn.ReplicationPad2d(1)]
+        elif padding_type == 'zero':
+            p = 1
+        else:
+            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p),
+                       norm_layer(dim)]
+
+        return nn.Sequential(*conv_block)
+
+    def forward(self, x):
+        out = x + self.conv_block(x)
+        return out
+
+class Encoder(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf=32, n_downsampling=4, norm_layer=nn.BatchNorm2d):
+        super(Encoder, self).__init__()        
+        self.output_nc = output_nc        
+
+        model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0), 
+                 norm_layer(ngf), nn.ReLU(True)]             
+        ### downsample
+        for i in range(n_downsampling):
+            mult = 2**i
+            model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1),
+                      norm_layer(ngf * mult * 2), nn.ReLU(True)]
+
+        ### upsample         
+        for i in range(n_downsampling):
+            mult = 2**(n_downsampling - i)
+            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2), kernel_size=3, stride=2, padding=1, output_padding=1),
+                       norm_layer(int(ngf * mult / 2)), nn.ReLU(True)]        
+
+        model += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
+        self.model = nn.Sequential(*model) 
+
+    def forward(self, input, inst):
+        outputs = self.model(input)
+
+        # instance-wise average pooling
+        outputs_mean = outputs.clone()
+        inst_list = np.unique(inst.cpu().numpy().astype(int))        
+        for i in inst_list:
+            for b in range(input.size()[0]):
+                indices = (inst[b:b+1] == int(i)).nonzero() # n x 4            
+                for j in range(self.output_nc):
+                    output_ins = outputs[indices[:,0] + b, indices[:,1] + j, indices[:,2], indices[:,3]]                    
+                    mean_feat = torch.mean(output_ins).expand_as(output_ins)                                        
+                    outputs_mean[indices[:,0] + b, indices[:,1] + j, indices[:,2], indices[:,3]] = mean_feat                       
+        return outputs_mean
+
 class MultiscaleDiscriminator(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, 
                  use_sigmoid=False, num_D=3, getIntermFeat=False):
@@ -320,7 +330,6 @@ class MultiscaleDiscriminator(nn.Module):
                 model = [getattr(self, 'scale'+str(num_D-1-i)+'_layer'+str(j)) for j in range(self.n_layers+2)]
             else:
                 model = getattr(self, 'layer'+str(num_D-1-i))
-
             result.append(self.singleD_forward(model, input_downsampled))
             if i != (num_D-1):
                 input_downsampled = self.downsample(input_downsampled)
