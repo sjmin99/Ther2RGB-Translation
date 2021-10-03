@@ -16,28 +16,39 @@ pip install -r requirements.txt
 
 
 ### Training
+다음 명령어를 실행시키면 모델을 학습할 수 있습니다.
 ```
 python train.py --name $YOUR_MODEL_NAME --dataroot $YOUR_DATA_PATH
 ```
-
 ### Multi-GPU training
+Multi-GPU가 사용이 가능하다면 아래 명령어를 통해 Multi-GPU로 학습시킬 수 있습니다.
 ```
 python train.py --name $YOUR_MODEL_NAME --dataroot $YOUR_DATA_PATH --gpu_ids 0,1,2,3
 ```
-
+참고 : GAN은 학습의 불안정성 때문에 Batch를 작게 하는 것이 일반적입니다. 너무 큰 배치 사이즈로 학습 시 어떤 성능이 나오는지 평가해보지 않았으므로, 사용자분들의 재량에 맞춰 세팅해주세요.
 ### Baseline Setting
+리더보드 베이스라인에 사용한 arguments입니다.
 ```
 sh scripts/train.sh
 ```
-
+보다 자세한 argument 종류 및 설명은 options 폴더 내 script에서 확인하실 수 있습니다.
 ### Evaluating
+다음 명령어를 실행시키면 학습한 모델을 평가할 수 있습니다.
 ```
 sh scripts/test.sh
+```
+## Citation
 ```
 @inproceedings{isola2017image,
   title={Image-to-Image Translation with Conditional Adversarial Networks},
   author={Isola, Phillip and Zhu, Jun-Yan and Zhou, Tinghui and Efros, Alexei A},
   booktitle={Computer Vision and Pattern Recognition (CVPR), 2017 IEEE Conference on},
   year={2017}
+}
+@inproceedings{wang2018pix2pixHD,
+  title={High-Resolution Image Synthesis and Semantic Manipulation with Conditional GANs},
+  author={Ting-Chun Wang and Ming-Yu Liu and Jun-Yan Zhu and Andrew Tao and Jan Kautz and Bryan Catanzaro},  
+  booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
+  year={2018}
 }
 ```
