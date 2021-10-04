@@ -13,7 +13,9 @@ cd Ther2RGB-Translation
 pip install -r requirements.txt
 ```
 3. 학습을 위한 데이터 셋을 다운받습니다.
-
+```
+wget --load-cookies ~/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies ~/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1r9iQuio1OOSRkMpiHKckhefVv6TnNsyT' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1r9iQuio1OOSRkMpiHKckhefVv6TnNsyT" -O dataset.zip && rm -rf ~/cookies.txt
+```
 
 ### Training
 다음 명령어를 실행시키면 모델을 학습할 수 있습니다.
