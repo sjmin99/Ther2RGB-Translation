@@ -14,7 +14,7 @@ pip install -r requirements.txt
 ```
 3. 학습을 위한 데이터 셋을 다운받습니다.
 ```
-wget --load-cookies ~/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies ~/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1r9iQuio1OOSRkMpiHKckhefVv6TnNsyT' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1r9iQuio1OOSRkMpiHKckhefVv6TnNsyT" -O dataset.zip && rm -rf ~/cookies.txt
+wget --load-cookies ~/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies ~/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1479OIpNdDe2e3DaXVg0UV3aNPX_ST-wD' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1479OIpNdDe2e3DaXVg0UV3aNPX_ST-wD" -O dataset.zip && rm -rf ~/cookies.txt
 ```
 데이터 셋 구성은 다음과 같습니다.
 ```
