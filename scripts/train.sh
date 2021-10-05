@@ -15,5 +15,3 @@ python train.py --gpu_ids  4\
                 --niter 100  \
                 --niter_decay 50 \
                 --lambda_feat 10 \
-                --debug
-
