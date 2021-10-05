@@ -21,7 +21,7 @@ wget --load-cookies ~/cookies.txt "https://docs.google.com/uc?export=download&co
 ├── T2R_Dataset
    ├── train_A                                 # Source domain(Thermal) dataset for training
    ├── train_B                                 # Target domain(RGB) dataset for training
-   └── test_B                                  # Source domain(Thermal) dataset for training
+   └── test_A                                  # Source domain(Thermal) dataset for training
 ```
 ### Training
 다음 명령어를 실행시키면 모델을 학습할 수 있습니다.
