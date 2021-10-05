@@ -35,7 +35,6 @@ if opt.verbose:
     print(model)
 
 predict_list = []
-gt_list = []
 
 for i, data in enumerate(dataset):
 
@@ -61,9 +60,7 @@ for i, data in enumerate(dataset):
         visualizer.save_images(webpage, visuals, img_path)
 
 predict_list = np.stack(predict_list)
-gt_list = np.stack(gt_list)
 
 np.save(os.path.join(web_dir,"predict"), predict_list)
-np.save(os.path.join(web_dir,"gt"), gt_list)
 
 webpage.save()
