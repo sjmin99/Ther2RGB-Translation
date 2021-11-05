@@ -15,6 +15,7 @@ pip install -r requirements.txt
 3. 학습을 위한 데이터 셋을 다운받습니다.
 ```
 wget --load-cookies ~/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies ~/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1479OIpNdDe2e3DaXVg0UV3aNPX_ST-wD' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1479OIpNdDe2e3DaXVg0UV3aNPX_ST-wD" -O dataset.zip && rm -rf ~/cookies.txt
+unzip dataset.zip
 ```
 데이터 셋 구성은 다음과 같습니다.
 ```
@@ -28,6 +29,9 @@ wget --load-cookies ~/cookies.txt "https://docs.google.com/uc?export=download&co
 ```
 python train.py --name $YOUR_MODEL_NAME --dataroot $YOUR_DATA_PATH
 ```
+위에 명령어를 처음 실행시킬 경우 wandb 로그인을 해야하는 과정을 거치게 됩니다. wandb login 및 사용방법은 아래 링크를 참고해주세요.(해당 코드 내부에는 wandb 로그인만 하셔도 기본적인 기능들을 사용하실 수 있으니 로그인만 하셔도 무방합니다.)
+https://docs.wandb.ai/quickstart
+
 ### Multi-GPU training
 Multi-GPU가 사용이 가능하다면 아래 명령어를 통해 Multi-GPU로 학습시킬 수 있습니다.
 ```
